@@ -1,11 +1,10 @@
-FROM node:22-alpine
+FROM node:22-slim
 
 WORKDIR /usr/src/app
 
-COPY package.json ./
+COPY package.json pnpm-lock.yaml* ./
 RUN npm install -g pnpm && pnpm install
 
 COPY . .
 
-# Assume Prisma client is already generated in the shared volume or we generate it here
-CMD npx prisma generate --schema=/usr/src/app/backend-data/schema.prisma && pnpm run start
+CMD ["node", "index.js"]
