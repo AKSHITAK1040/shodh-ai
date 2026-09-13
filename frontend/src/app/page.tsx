@@ -42,7 +42,14 @@ export default function Home() {
           </Link>
 
           {/* User Auth Buttons */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/instructor/health"
+              className="flex items-center gap-2 px-3 py-1.5 bg-[#121824] border border-rose-900/60 hover:border-rose-700 text-rose-400 text-xs font-semibold rounded-lg transition shadow-sm hidden sm:flex"
+            >
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+              <span>Health Radar</span>
+            </Link>
             <Link
               href="/contests"
               className="text-sm font-medium text-[#94A3B8] hover:text-white transition hidden sm:inline-block"

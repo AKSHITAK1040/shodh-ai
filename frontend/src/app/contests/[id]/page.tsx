@@ -576,6 +576,13 @@ export default function ContestDetail() {
           </div>
           <div className="flex items-center gap-3">
             <Link
+              href="/instructor/health"
+              className="flex items-center gap-2 px-3 py-2 bg-[#1F131D] border border-rose-900/60 hover:border-rose-700 text-rose-300 rounded-xl text-xs font-semibold transition shadow-sm hidden sm:flex"
+            >
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+              <span>Health Radar</span>
+            </Link>
+            <Link
               href={`/ai?q=${encodeURIComponent('What are the key concepts, prerequisites, and learning resources required to solve all problems in the Midterm Algorithms contest?')}&contest=Midterm+Algorithms`}
               className="flex items-center gap-2 px-4 py-2 bg-[#25173B] border border-purple-800/60 hover:border-purple-600 text-purple-300 rounded-xl text-xs font-semibold transition shadow-sm"
             >
