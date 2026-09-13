@@ -34,6 +34,7 @@ services:
     environment:
       - BACKEND_URL=http://backend:3000
       - GROQ_API_KEY=${GROQ_API_KEY}
+      - DEV_DB_PATH=/app/backend-data/dev.db
     networks:
       - shodh-network
 

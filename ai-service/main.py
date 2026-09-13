@@ -63,7 +63,20 @@ collection = chroma_client.get_or_create_collection(name="knowledge_base")
 sql_conn = sqlite3.connect("fts.db", check_same_thread=False)
 
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:3001")
-DEV_DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend", "prisma", "dev.db"))
+def get_dev_db_path() -> str:
+    candidates = [
+        os.environ.get("DEV_DB_PATH", ""),
+        "/app/backend-data/dev.db",
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "backend-data", "dev.db")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend", "prisma", "dev.db")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend", "dev.db")),
+    ]
+    for c in candidates:
+        if c and os.path.exists(c):
+            return c
+    return candidates[1] if os.path.exists("/app/backend-data") else candidates[3]
+
+DEV_DB_PATH = get_dev_db_path()
 
 class AskRequest(BaseModel):
     question: str
@@ -101,8 +114,8 @@ async def startup_event():
             # 3. Dummy ChromaDB call to force model download on startup
             collection.query(query_texts=["init"], n_results=1)
             
-            # 4. Seed Relational dev.db
-            seed_dev_db()
+            # 4. Perform initial graph, vector, and FTS seeding
+            perform_seeding()
             
             is_ready = True
             logger.info("AI Service is READY.")
@@ -113,10 +126,11 @@ async def startup_event():
 
 def seed_dev_db():
     try:
-        if not os.path.exists(DEV_DB_PATH):
-            logger.warning(f"dev.db not found at {DEV_DB_PATH}")
+        db_path = get_dev_db_path()
+        if not os.path.exists(db_path):
+            logger.warning(f"dev.db not found at {db_path}")
             return
-        conn_sql = sqlite3.connect(DEV_DB_PATH)
+        conn_sql = sqlite3.connect(db_path)
         cur = conn_sql.cursor()
 
         # Ensure users exist
@@ -305,11 +319,7 @@ def health_check():
         return {"status": "ready"}
     return {"status": "initializing"}, 503
 
-@app.post("/seed")
-def seed_data():
-    if not is_ready:
-        raise HTTPException(503, "Not ready")
-    
+def perform_seeding():
     # 1. Seed Graph: 4-Hop Multi-Hop Traversal (Learner -> Submission -> Problem -> Concept -> Learning Resource)
     conn.execute("MERGE (l:Learner {id: 'u1', name: 'Alice'})")
     conn.execute("MERGE (p:Problem {id: 'p1', title: 'Two Sum'})")
@@ -410,6 +420,12 @@ def seed_data():
     seed_dev_db()
     return {"status": "seeded"}
 
+@app.post("/seed")
+def seed_data():
+    if not is_ready:
+        raise HTTPException(503, "Not ready")
+    return perform_seeding()
+
 # Dynamic Entity & User Resolution (Zero Hardcoding)
 _dynamic_entities_cache = {}
 _dynamic_entities_cache_time = 0
@@ -429,9 +445,10 @@ def get_dynamic_entities() -> Dict[str, Dict[str, str]]:
     entities = {}
 
     # 1. Relational Database Entities
-    if os.path.exists(DEV_DB_PATH):
+    db_path = get_dev_db_path()
+    if os.path.exists(db_path):
         try:
-            conn_sql = sqlite3.connect(DEV_DB_PATH)
+            conn_sql = sqlite3.connect(db_path)
             cur = conn_sql.cursor()
 
             # Problems
@@ -575,10 +592,11 @@ def resolve_entities(query: str) -> List[Dict]:
 
 # Authoritative Submission Diagnostic Retrieval
 def find_target_submission(query: str, user_id: str, user_role: str, explicit_sub_id: Optional[str] = None) -> Optional[str]:
-    if not os.path.exists(DEV_DB_PATH):
+    db_path = get_dev_db_path()
+    if not os.path.exists(db_path):
         return None
     try:
-        conn = sqlite3.connect(DEV_DB_PATH)
+        conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         
         # 1. Explicit ID in payload
@@ -650,10 +668,11 @@ def find_target_submission(query: str, user_id: str, user_role: str, explicit_su
     return None
 
 def get_submission_diagnostic_data(sub_id: str, requesting_user_id: str, requesting_user_role: str) -> Optional[Dict[str, Any]]:
-    if not os.path.exists(DEV_DB_PATH):
+    db_path = get_dev_db_path()
+    if not os.path.exists(db_path):
         return None
     try:
-        conn = sqlite3.connect(DEV_DB_PATH)
+        conn = sqlite3.connect(db_path)
         cur = conn.cursor()
 
         # Priority 1: Submission Record
@@ -1496,7 +1515,8 @@ def analyze_contest_health(contest_id: Optional[str] = None) -> Dict[str, Any]:
     Analyzes submission outcomes, judge telemetry, worker nodes, and judge events
     to detect abnormal failure patterns and isolate judge/infrastructure incidents.
     """
-    if not os.path.exists(DEV_DB_PATH):
+    db_path = get_dev_db_path()
+    if not os.path.exists(db_path):
         return {
             "status": "HEALTHY",
             "confidence": "HIGH",
@@ -1509,7 +1529,7 @@ def analyze_contest_health(contest_id: Optional[str] = None) -> Dict[str, Any]:
             "evidence": []
         }
 
-    conn_sql = sqlite3.connect(DEV_DB_PATH)
+    conn_sql = sqlite3.connect(db_path)
     cur = conn_sql.cursor()
 
     cur.execute("""
