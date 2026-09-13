@@ -1,0 +1,76 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "1. Start Backend API",
+      "type": "shell",
+      "command": "node dist/main",
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "group": "shodh-services",
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "2. Start AI Service",
+      "type": "shell",
+      "command": "uvicorn main:app --host 0.0.0.0 --port 3002 --reload",
+      "options": {
+        "cwd": "${workspaceFolder}/ai-service"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "group": "shodh-services",
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "3. Start Judge Worker",
+      "type": "shell",
+      "command": "node index.js",
+      "options": {
+        "cwd": "${workspaceFolder}/judge-worker"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "group": "shodh-services",
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "4. Start Frontend UI",
+      "type": "shell",
+      "command": "pnpm dev --port 3001",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "group": "shodh-services",
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Start All Services (Shodh-a-Code)",
+      "dependsOn": [
+        "1. Start Backend API",
+        "2. Start AI Service",
+        "3. Start Judge Worker",
+        "4. Start Frontend UI"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}
