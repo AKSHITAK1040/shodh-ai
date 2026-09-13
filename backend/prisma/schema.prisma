@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id             String                   @id @default(uuid())
+  email          String                   @unique
+  password       String
+  name           String
+  role           String                   // STUDENT, INSTRUCTOR, ADMIN
+  memberships    OrganizationMembership[]
+  participations ContestParticipant[]
+  submissions    Submission[]
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+}
+
+model Organization {
+  id          String                   @id @default(uuid())
+  name        String
+  memberships OrganizationMembership[]
+  contests    Contest[]
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+}
+
+model OrganizationMembership {
+  id             String       @id @default(uuid())
+  userId         String
+  organizationId String
+  user           User         @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  role           String       // ADMIN, MEMBER
+  createdAt      DateTime     @default(now())
+
+  @@unique([userId, organizationId])
+}
+
+model Contest {
+  id             String               @id @default(uuid())
+  title          String
+  description    String?
+  organizationId String
+  organization   Organization         @relation(fields: [organizationId], references: [id])
+  startTime      DateTime
+  endTime        DateTime
+  problems       Problem[]
+  participants   ContestParticipant[]
+  leaderboard    LeaderboardEntry[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+}
+
+model ContestParticipant {
+  id        String   @id @default(uuid())
+  userId    String
+  contestId String
+  user      User     @relation(fields: [userId], references: [id])
+  contest   Contest  @relation(fields: [contestId], references: [id])
+  joinedAt  DateTime @default(now())
+
+  @@unique([userId, contestId])
+}
+
+model Problem {
+  id          String       @id @default(uuid())
+  contestId   String
+  contest     Contest      @relation(fields: [contestId], references: [id])
+  title       String
+  description String
+  points      Int          @default(10)
+  testCases   TestCase[]
+  submissions Submission[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model TestCase {
+  id           String           @id @default(uuid())
+  problemId    String
+  problem      Problem          @relation(fields: [problemId], references: [id])
+  input        String
+  expected     String
+  isHidden     Boolean          @default(false)
+  points       Int?
+  order        Int?             @default(0)
+  enabled      Boolean          @default(true)
+  results      TestCaseResult[]
+  createdAt    DateTime         @default(now())
+}
+
+model Submission {
+  id              String           @id @default(uuid())
+  userId          String
+  user            User             @relation(fields: [userId], references: [id])
+  problemId       String
+  problem         Problem          @relation(fields: [problemId], references: [id])
+  code            String
+  language        String
+  status          String           // QUEUED, RUNNING, COMPLETED, FAILED, INFRA_FAILED
+  verdict         String?          // ACCEPTED, PARTIAL, WRONG_ANSWER, COMPILE_ERROR, RUNTIME_ERROR, TIME_LIMIT_EXCEEDED, INFRASTRUCTURE_ERROR
+  score           Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  jobs            JudgeJob[]
+  testCaseResults TestCaseResult[]
+}
+
+model TestCaseResult {
+  id              String     @id @default(uuid())
+  submissionId    String
+  submission      Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  testCaseId      String
+  testCase        TestCase   @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  passed          Boolean
+  maxPoints       Float      @default(0)
+  pointsAwarded   Float      @default(0)
+  verdict         String     // PASSED, WRONG_ANSWER, RUNTIME_ERROR, TIME_LIMIT_EXCEEDED, COMPILE_ERROR
+  executionTimeMs Float?
+  memoryUsageMb   Float?
+  stdout          String?
+  stderr          String?
+  createdAt       DateTime   @default(now())
+
+  @@unique([submissionId, testCaseId])
+}
+
+model JudgeJob {
+  id           String     @id @default(uuid())
+  submissionId String
+  submission   Submission @relation(fields: [submissionId], references: [id])
+  status       String     // QUEUED, RUNNING, SUCCEEDED, FAILED, INFRA_FAILED
+  workerId     String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  logs         String?
+}
+
+model LeaderboardEntry {
+  id         String   @id @default(uuid())
+  contestId  String
+  contest    Contest  @relation(fields: [contestId], references: [id])
+  userId     String
+  score      Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@unique([contestId, userId])
+}
+
+model JudgeEvent {
+  id          String   @id @default(uuid())
+  type        String   // e.g. INFRA_FAILURE, WORKER_CRASH, MAINTENANCE
+  description String
+  timestamp   DateTime @default(now())
+  affectedIds String?  // JSON string of affected submission IDs
+}

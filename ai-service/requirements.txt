@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+kuzu
+chromadb
+requests
+pydantic
+python-dotenv
+google-genai
+langchain
+langchain-core
+langchain-chroma
+langchain-google-genai
+langchain-groq
+langgraph
+rapidfuzz

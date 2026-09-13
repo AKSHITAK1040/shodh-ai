@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - backend_data:/usr/src/app/prisma
+    environment:
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET:-super-secret-key-for-takehome}
+    networks:
+      - shodh-network
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_AI_URL=${NEXT_PUBLIC_AI_URL:-http://localhost:3002}
+    networks:
+      - shodh-network
+
+  ai-service:
+    build: ./ai-service
+    ports:
+      - "3002:3002"
+    volumes:
+      - ai_data:/app/data
+      - backend_data:/app/backend-data
+    environment:
+      - BACKEND_URL=http://backend:3000
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    networks:
+      - shodh-network
+
+  judge-worker:
+    build: ./judge-worker
+    volumes:
+      - backend_data:/usr/src/app/backend-data
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DB_URL=file:/usr/src/app/backend-data/dev.db
+    networks:
+      - shodh-network
+
+volumes:
+  backend_data:
+  ai_data:
+
+networks:
+  shodh-network:
+    driver: bridge
