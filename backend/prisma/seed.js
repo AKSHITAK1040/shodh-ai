@@ -4,6 +4,26 @@ const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 
 async function main() {
+  // 0. Standardize any datetime strings in SQLite before querying with Prisma
+  try {
+    await prisma.$executeRawUnsafe(`
+      UPDATE Submission SET 
+        createdAt = COALESCE(datetime(createdAt), datetime(createdAt / 1000, 'unixepoch'), datetime('now')),
+        updatedAt = COALESCE(datetime(updatedAt), datetime(updatedAt / 1000, 'unixepoch'), datetime('now'))
+    `);
+    await prisma.$executeRawUnsafe(`
+      UPDATE JudgeJob SET 
+        startedAt = COALESCE(datetime(startedAt), datetime(startedAt / 1000, 'unixepoch'), datetime('now')),
+        completedAt = COALESCE(datetime(completedAt), datetime(completedAt / 1000, 'unixepoch'), datetime('now'))
+      WHERE startedAt IS NOT NULL
+    `);
+    await prisma.$executeRawUnsafe(`
+      UPDATE JudgeEvent SET 
+        timestamp = COALESCE(datetime(timestamp), datetime(timestamp / 1000, 'unixepoch'), datetime('now'))
+      WHERE timestamp IS NOT NULL
+    `);
+  } catch (e) {}
+
   const password = await bcrypt.hash('password', 10);
 
   // Users
