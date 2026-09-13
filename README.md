@@ -1,145 +1,238 @@
-<div align="center">
-
-# 🚀 Shodh-a-Code
-### Intelligent Competitive Programming Platform with GraphRAG AI Diagnostics
+# The "Shodh-a-Code" Contest Platform
+**AI Engineer Intern Take-Home Submission**
 
 [![Next.js](https://img.shields.io/badge/Frontend-Next.js%2016-black?logo=next.js)](https://nextjs.org/)
 [![NestJS](https://img.shields.io/badge/Backend-NestJS-E0234E?logo=nestjs)](https://nestjs.com/)
-[![FastAPI](https://img.shields.io/badge/AI%20Service-FastAPI-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![FastAPI](https://img.shields.io/badge/AI%20Layer-FastAPI-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Docker](https://img.shields.io/badge/Judge-Docker%20Sandboxes-2496ED?logo=docker)](https://www.docker.com/)
-[![Kuzu](https://img.shields.io/badge/Knowledge%20Graph-Kùzu%20DB-purple)](https://kuzudb.com/)
-[![Groq](https://img.shields.io/badge/LLM-Groq%20Llama%203.3-orange)](https://groq.com/)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Kùzu](https://img.shields.io/badge/Knowledge%20Graph-Kùzu%20DB-purple)](https://kuzudb.com/)
+[![Groq](https://img.shields.io/badge/LLM-Groq%20Llama%203.3%2070B-orange)](https://groq.com/)
 
-<p align="center">
-  <b>Shodh-a-Code</b> combines real-time competitive programming with an evidence-grounded AI tutor and an automated instructor health radar.
-</p>
-
-[Quick Start](#-quick-start-in-60-seconds) • [Architecture](#-how-it-works) • [Key Features](#-what-makes-it-special) • [Test Matrix](#-verification--quality-assurance) • [Demo Credentials](#-demo-accounts)
-
-</div>
+A full-stack, containerized coding contest platform featuring an authoritative asynchronous judging engine, multi-language sandbox execution, and an evidence-grounded GraphRAG diagnostic microservice that explains submission failures and isolates judge cluster incidents.
 
 ---
 
-## 🌟 What is Shodh-a-Code?
-
-Most coding contest platforms only tell you: *"Wrong Answer"* or *"Time Limit Exceeded"*. They don't help you learn, and when a server crashes, students often get blamed with zero visibility.
-
-**Shodh-a-Code rethinks this from scratch:**
-
-1. **⚡ Lightning-Fast & Fair Judging:** Your code runs in isolated Docker containers with real-time feedback, supporting Python, JavaScript, C++, and Bash with partial credit scoring.
-2. **🧠 GraphRAG AI Tutor:** Ask the AI *"Why did my solution fail?"* or *"What concepts do I need for Binary Search?"*. It doesn't hallucinate — it inspects your exact code in SQLite and traverses a **knowledge graph** to find relevant concepts and curated learning guides.
-3. **📡 AI Contest Health Radar:** An instructor view that monitors judge cluster health. If a worker node crashes or runs out of memory, the radar detects the incident in real time so students never lose points over server bugs.
+## Table of Contents
+1. [System Architecture & Storage Division](#1-system-architecture--storage-division)
+2. [Stage 1: Contest API & Asynchronous Containerized Judge](#2-stage-1-contest-api--asynchronous-containerized-judge)
+3. [Stage 2: Contest Frontend & Real-Time Flow](#3-stage-2-contest-frontend--real-time-flow)
+4. [Stage 3: Evidence-Grounded AI Layer (GraphRAG & Investigation)](#4-stage-3-evidence-grounded-ai-layer-graphrag--investigation)
+5. [Stage 4: Reliability, Security, Cost & Recovery](#5-stage-4-reliability-security-cost--recovery)
+6. [Quick Start & Single-Command Evaluation](#6-quick-start--single-command-evaluation)
+7. [Evaluation Summary & Test Results](#7-evaluation-summary--test-results)
+8. [Engineering Trade-offs, Limitations & Disclosures](#8-engineering-trade-offs-limitations--disclosures)
 
 ---
 
-## 🏗️ How It Works
+## 1. System Architecture & Storage Division
 
-```mermaid
-flowchart TD
-    User([👤 Student in Browser]) -->|Submit Code / Ask AI| FE[Next.js 16 Frontend :3001]
-    FE -->|/api/backend proxy| BE[NestJS Backend :3000]
-    FE -->|/api/ai proxy| AI[FastAPI AI Service :3002]
+### Architecture Overview
 
-    BE -->|Prisma ORM| DB[(SQLite dev.db)]
-    BE -->|Queue Job| Queue[JudgeJob Table]
-
-    Worker[Judge Worker Daemon] -->|Polls| Queue
-    Worker -->|Spins up ephemeral container| Sandbox[Docker Sandbox Container]
-    Sandbox -->|Isolated Run: nobody, no-net| Sandbox
-    Sandbox -->|Result & Score| Worker
-    Worker -->|Persist Result & Update Leaderboard| DB
-
-    AI -->|Relational Queries| DB
-    AI -->|Multi-Hop Graph Traversal| Kuzu[(Kùzu Property Graph)]
-    AI -->|Semantic Retrieval| Chroma[(ChromaDB Vectors)]
-    AI -->|Grounded Synthesis| Groq[Groq Llama 3.3 70B]
-    Groq -->|Strict 4-Part Diagnostic| User
+```
+[ Browser Client ]
+       │  (HTTP / Next.js Pages: /contests, /contests/:id, /ai, /instructor/health)
+       ▼
+[ Next.js 16 Frontend ] (Port 3001)
+       │  (Dynamic Runtime Proxies: /api/backend & /api/ai)
+       ├──► [ NestJS Backend API ] (Port 3000) ── Auth & RBAC (JWT)
+       │           │
+       │           ├── Authoritative DB Operations (Prisma ORM)
+       │           ▼
+       │    [ SQLite Relational DB ] (dev.db) ── Submissions, Users, TestCases
+       │           │
+       │           ├── Transactional Submission Enqueue: status=QUEUED
+       │           ▼
+       │    [ JudgeJob Queue Table ]
+       │           ▲
+       │           │  (Polls QUEUED jobs every 1s, recovers stale jobs every 60s)
+       │    [ Judge Worker Daemon ] (Node.js + Dockerode)
+       │           │
+       │           ├── Ephemeral Container Run (python:3.10-alpine, node:20-alpine, gcc:alpine)
+       │           ▼
+       │    [ Docker Sandboxes ] (nobody, NetworkMode: 'none', 128MB RAM, ReadonlyRootfs)
+       │           │
+       │           ▼
+       │    [ Persist TestCaseResult & Update Leaderboard ]
+       │
+       └──► [ AI Diagnostic Microservice ] (Port 3002, FastAPI + Groq Llama 3.3)
+                   │
+                   ├── Dynamic Entity Resolution (dev.db + Kùzu Graph via RapidFuzz)
+                   ├── Multi-Hop GraphRAG (Kùzu Property Graph)
+                   ├── Semantic Retrieval (ChromaDB Vector Store)
+                   ├── Lexical Keyword Matching (SQLite FTS5)
+                   └── Grounded 4-Part Diagnostic Synthesis (Observation, Inference, Unknowns, Evidence)
 ```
 
-### 💾 Smart Storage Architecture
+### Storage Responsibilities
 
-Rather than forcing everything into one database, each storage engine handles what it does best:
+Rather than forcing all data into a single database, storage is cleanly partitioned across four specialized engines:
 
-| Layer | Engine | What It Stores |
+| Storage Engine | Technology | Concrete Responsibilities |
 | :--- | :--- | :--- |
-| **Relational DB** | SQLite (`dev.db`) | Contests, problems, test cases, user profiles, submissions, and leaderboard rankings. |
-| **Knowledge Graph** | Kùzu Graph | Concept prerequisites (`Problem -> Concept -> Resource`) and incident telemetry (`Worker -> IncidentEvent`). |
-| **Vector DB** | ChromaDB | High-dimensional semantic embeddings for conceptual documentation. |
-| **Lexical Search** | SQLite FTS5 | Exact keyword lookup for compiler error messages and logs. |
+| **Relational DB** | **SQLite (`dev.db`) via Prisma ORM** | **Authoritative Single Source of Truth:** User identities, organizations, contests, problems, test cases (visible & hidden), submissions, judge jobs, individual testcase results (`TestCaseResult`), and contest leaderboards. All writes here are strictly ACID-compliant. |
+| **Graph DB** | **Kùzu Embedded Property Graph** | **Multi-Hop Topological Traversal:** Models relationships that relational joins struggle with at scale: <br>• Learner Prerequisite Gaps: `(Learner)-[:SUBMITTED]->(Submission)-[:ATTEMPTED]->(Problem)-[:REQUIRES]->(Concept)-[:RECOMMENDS]->(Resource)`<br>• Infrastructure Outage Telemetry: `(Submission)-[:PROCESSED_BY]->(Worker)-[:AFFECTED_BY]->(IncidentEvent)` |
+| **Vector DB** | **ChromaDB (Persistent)** | **Semantic Similarity:** Embeds conceptual documentation, algorithm problem descriptions, and learning guides to match natural language student questions even when keywords differ. |
+| **Lexical Search** | **SQLite FTS5 (`fts.db`)** | **Exact Keyword Lookup:** BM25 scoring for exact compiler error outputs, worker crash logs, and raw incident descriptions where exact string matches matter more than semantic proximity. |
 
 ---
 
-## ✨ What Makes It Special?
+## 2. Stage 1: Contest API & Asynchronous Containerized Judge
 
-### 1. 🛡️ Fortress-Level Sandbox Security
-Every submission runs in a locked-down, ephemeral Docker container:
-- **Non-Root User:** Runs strictly as `nobody` (`uid=65534`).
-- **Air-Gapped:** `NetworkMode: 'none'` — absolutely zero internet access.
-- **Resource Quotas:** 128MB RAM limit, 1 CPU core limit, and process limit (`PidsLimit: 64`) to prevent fork-bombs.
-- **Read-Only Root:** Immutable filesystem (`ReadonlyRootfs: true`).
-- **5-Second Watchdog:** Hard kill on infinite loops.
+### Asynchronous Queue & State Machine
+1. A student submits code through `POST /submissions`.
+2. The backend creates a `Submission` record (`status: QUEUED`, `verdict: null`, `score: 0`) and a linked `JudgeJob` inside a single atomic SQLite transaction.
+3. The response returns immediately to the client with `id: <uuid>` so the UI is non-blocking.
+4. The standalone **Judge Worker** daemon polls for `QUEUED` jobs, transitions the job to `RUNNING`, and executes each test case inside an isolated Docker sandbox.
+5. On completion, the worker updates individual `TestCaseResult` rows, computes the score, updates the contest leaderboard, and sets `status: COMPLETED` with the final verdict.
 
-### 2. ⚖️ Fair Partial Credit Scoring
-Scoring isn't all-or-nothing:
-- **Equal Weighting:** Problems with unweighted tests automatically distribute points evenly ($P / N$).
-- **Explicit Weighting:** Supports weighted test cases (e.g. edge cases worth more).
-- **Hybrid Weighting:** Any unassigned points are distributed fairly across remaining test cases.
-- **Leaderboard Invariant:** Scores are monotonic — a subsequent failed attempt will never lower your personal best score.
+### Pure Generic Scoring & Mathematical Model
+The judging engine contains **zero hardcoded problem logic or static answers**. It dynamically handles three distinct weighting modes:
+- **Equal-Weight Mode:** If a problem has $N$ unweighted test cases, each passed test case awards exactly $P / N$ points.
+- **Explicit-Weight Mode:** If test cases specify individual points (e.g. edge cases worth more), points are summed based on passed tests.
+- **Hybrid Weighting:** Any unassigned problem points are divided evenly among unweighted test cases:
+  $$\text{defaultWeight} = \frac{\max(0, P - \sum \text{explicitPoints})}{\text{unweightedCount}}$$
+- **Monotonic Leaderboard Invariant:**
+  $$\text{ContestScore}(u) = \sum_{p \in \text{Problems}} \min\left(p.\text{points}, \max_{s \in \text{Submissions}(u, p)} \text{score}(s)\right)$$
+  Submitting a worse attempt will **never** lower a student's personal best score, and repeated successful submissions will never inflate the leaderboard.
 
-### 3. 🎯 Grounded GraphRAG (Zero Hallucination)
-The AI tutor uses a strict 4-part grounded diagnostic format:
-- **OBSERVATION:** What objectively happened in your test results.
-- **INFERENCE:** What logical flaw exists in the algorithm.
-- **WHAT CANNOT BE ESTABLISHED:** Honest admissions of unknowns.
-- **EVIDENCE:** Exact source links and graph paths.
-
----
-
-## ⚡ Quick Start in 60 Seconds
-
-### Option A: Run in VS Code (Easiest)
-
-1. Open this repository in **VS Code**.
-2. Press:
-   ```text
-   Ctrl + Shift + B
-   ```
-   *(Or click **Terminal** → **Run Build Task...**)*.
-3. All 4 services will launch automatically in split integrated terminals!
+### Fortress-Level Sandbox Security
+Every submission is evaluated inside a single-use ephemeral container with strict defense-in-depth:
+- **Non-Root Execution:** Containers run strictly as `nobody` (`uid=65534`).
+- **Air-Gapped Network:** `NetworkMode: 'none'` completely disables inbound/outbound networking, preventing socket abuse, reverse shells, or remote data exfiltration.
+- **Resource Limits:** Hard caps of `Memory: 128MB` (no swap) and `CpuQuota: 100000` (1 core).
+- **Fork-Bomb Protection:** `PidsLimit: 64` prevents process table exhaustion.
+- **Immutable Filesystem:** `ReadonlyRootfs: true` blocks writing to system paths (`/root`, `/bin`, `/usr`).
+- **5-Second Watchdog:** Hard process kill triggers `TIME_LIMIT_EXCEEDED` on infinite loops.
+- **Infrastructure Integrity:** If Docker fails on the host, the worker marks the submission as `INFRASTRUCTURE_ERROR` (`INFRA_FAILED`). **Host execution is never attempted**, ensuring student code never runs on the judging host, and infrastructure bugs are never blamed on student code.
 
 ---
 
-### Option B: 1-Click Batch Script (Windows)
+## 3. Stage 2: Contest Frontend & Real-Time Flow
 
-Simply double-click `run_all.bat` or run:
-```powershell
-.\run_all.bat
+Built with **Next.js 16 (App Router)** and **Tailwind CSS**:
+- **Original Contest Flow:** Users log in as a student (e.g. Alice), select an active contest, choose a problem, write code in the editor, and submit.
+- **Live Asynchronous Updates:** The client polls `/api/backend/submissions/:id` every 1 second, showing transitions from `QUEUED` $\to$ `RUNNING` $\to$ `COMPLETED`, rendering passed/failed badges, stdout, compiler stderr, and individual testcase scores.
+- **Zero-CORS Runtime Proxying:** Next.js server-side dynamic route handlers (`/api/backend/[[...path]]` and `/api/ai/[[...path]]`) proxy all browser traffic directly to internal Docker network services (`backend:3000` and `ai-service:3002`). This completely eliminates CORS issues, browser port mismatches, and mixed-content blocking.
+- **State Persistence:** Results, authentication tokens, and leaderboard standings remain consistent across page refreshes, tab switches, and network reconnects.
+
+---
+
+## 4. Stage 3: Evidence-Grounded AI Layer (GraphRAG & Investigation)
+
+The AI layer is built directly into Shodh-a-Code as a dedicated microservice (`ai-service` on port 3002). It is **not a generic document chatbot**; it grounds its responses in live platform telemetry, relational databases, and a knowledge graph.
+
+### Core Capabilities
+
+#### 1. Dynamic Entity Resolution (Zero Hardcoding)
+- Does not rely on static entity maps.
+- `get_dynamic_entities()` queries `dev.db` for problems, users, and submissions, and queries Kùzu for concepts and worker nodes.
+- Uses **RapidFuzz** (`score_cutoff=75`) to resolve misspellings, colloquial names (e.g. `"binary search"`, `"p3"`, `"two sum"`, `"Alice"`), and partial mentions.
+
+#### 2. Multi-Hop GraphRAG vs. Simpler Baselines
+Why vector search alone is insufficient:
+- *Vector Only:* When asked *"Which learners share a prerequisite gap despite different failed submissions?"*, vector embeddings cannot trace who submitted what or traverse topological graph paths.
+- *GraphRAG:* Traverses `(Learner)-[:SUBMITTED]->(Submission)-[:ATTEMPTED]->(Problem)-[:REQUIRES]->(Concept)-[:RECOMMENDS]->(Resource)` across multiple hops.
+- Combines semantic retrieval (ChromaDB), exact compiler log search (SQLite FTS5), and graph traversal (Kùzu) through reciprocal-rank reranking.
+
+#### 3. Strict 4-Part Grounded Synthesis
+To prevent hallucinations, the LLM (Groq Llama 3.3 70B Versatile) synthesizes its final answer strictly using:
+```text
+OBSERVATION
+<Direct, verifiable facts observed in the database and test results>
+
+INFERENCE
+<Logical deductions grounded strictly in the observations>
+
+WHAT CANNOT BE ESTABLISHED
+<Honest acknowledgments of missing data, unknown dependencies, or ambiguous logs>
+
+EVIDENCE
+<Exact citations: GraphRAG paths, submission IDs, or log timestamps>
 ```
 
+#### 4. The Three Target Scenarios Addressed
+1. **Student Failure Diagnosis:**
+   *"Why did my latest submission fail, and what should I review next?"*
+   $\to$ Inspects the student's actual submission in SQLite, retrieves failed testcase stderr, traces the problem's required concept in Kùzu, and returns the curated learning resource.
+2. **Cross-Learner Prerequisite Gap Analysis:**
+   *"Which learners may share a prerequisite gap despite having different failed submissions?"*
+   $\to$ Finds students who failed different problems (e.g. Alice on Two Sum, Bob on Palindrome Checker) that converge on the same underlying concept (`Hash Map`).
+3. **Judge Outage vs. Student Mistake Isolation:**
+   *"Did a change to the judge affect contest outcomes, and what evidence separates infrastructure problems from errors in submitted code?"*
+   $\to$ Graph query correlates `worker-crash-node9` kernel panic events (`JudgeEvent`) with `INFRASTRUCTURE_ERROR` spikes, separating genuine code mistakes (`WRONG_ANSWER` on healthy workers) from server crashes.
+
+#### 5. Privacy & Live Contest Hint Policy
+- **Hidden Tests Redacted:** Students can only view visible sample test outputs. Hidden test inputs and expected outputs are stripped at the database query level and completely redacted from AI context.
+- **Peer Code Privacy:** When Alice asks about Bob's submission, the code is masked (`[PRIVATE: Code hidden for privacy protection]`).
+- **Instructor Telemetry Restricted:** The Contest Health Radar endpoint (`/instructor/contest-health`) enforces RBAC: `INSTRUCTOR` role is required; student requests return `403 Forbidden`.
+
 ---
 
-### Option C: Docker Compose
+## 5. Stage 4: Reliability, Security, Cost & Recovery
 
+### Reliability & Crash Recovery
+- **Worker Crash Recovery:** If the judge worker process crashes or the server is restarted mid-execution, orphaned jobs left in `RUNNING` status are automatically reclaimed by `recoverStaleJobs()` on worker startup. Stale jobs (> 5 minutes) are finalized cleanly with `INFRASTRUCTURE_ERROR` and an incident event is logged, preventing deadlocks.
+- **Idempotent Job Processing:** Submissions use unique UUIDs and database transactions to ensure duplicate runs never produce conflicting scores.
+- **Scaling to Heavier Loads:** In a high-traffic production setup, SQLite would be replaced with PostgreSQL, and the in-memory/polling queue would transition to a Redis-backed BullMQ or Kafka distributed broker with horizontally auto-scaled worker nodes.
+
+### Security Boundaries
+- Strict separation between the judging worker (which communicates with Docker) and student input.
+- Submitted code is compiled and executed exclusively in unprivileged, read-only containers.
+- All AI tools are strictly read-only; the AI cannot write to the database or modify contest scores.
+
+### Cost Control & Rate Limiting
+- **In-Memory Rate Limiting:** A token-bucket limiter in `ai-service` restricts users to **10 requests per minute** per user ID, preventing API quota abuse.
+- **Low-Cost Inference:** Utilizes Groq's high-throughput Llama 3.3 70B engine (~$0.0002 per diagnostic query), delivering sub-second response times.
+- **Graceful Fallback:** If Groq or an external LLM is offline or times out, the service falls back to a deterministic, local rule-based synthesizer based on retrieved graph evidence. The core contest judging engine operates with **100% independence** and continues functioning even if the AI service is completely stopped.
+
+---
+
+## 6. Quick Start & Single-Command Evaluation
+
+### Prerequisites
+- Docker & Docker Compose
+- (Optional for local dev) Node.js 20+, Python 3.10+, pnpm 9
+
+### Option A: 1-Click Docker Compose (Production Setup)
 ```bash
+# Clone the repository
+git clone https://github.com/AKSHITAK1040/shodh-ai.git
+cd shodh-ai
+
+# Start all 4 services with Docker Compose
 docker compose up --build
 ```
-
-### 🌐 Service Endpoints
-
-| Service | Local URL | Description |
-| :--- | :--- | :--- |
-| **Frontend UI** | `http://localhost:3001` | Landing page, contest problems, code editor |
-| **AI Assistant** | `http://localhost:3001/ai` | Interactive GraphRAG AI investigator |
-| **Health Radar** | `http://localhost:3001/instructor/health` | Real-time cluster health & incident radar |
-| **Backend API** | `http://localhost:3000` | NestJS REST API and Swagger docs |
-| **AI Service** | `http://localhost:3002` | FastAPI microservice |
+- **Frontend UI:** `http://localhost:3001`
+- **Contests:** `http://localhost:3001/contests`
+- **AI Assistant:** `http://localhost:3001/ai`
+- **Health Radar:** `http://localhost:3001/instructor/health`
+- **Backend API:** `http://localhost:3000`
+- **AI Service:** `http://localhost:3002`
 
 ---
 
-## 👥 Demo Accounts
+### Option B: 1-Click Local Launch in VS Code
+1. Open the project folder in **VS Code**.
+2. Press `Ctrl + Shift + B` (or run **Terminal → Run Build Task...**).
+3. All 4 services will start in dedicated terminal panels.
 
-You can test different platform roles with these pre-seeded accounts:
+---
+
+### Single Command to Run Evaluation
+Run the automated GraphRAG evaluation suite:
+```bash
+python evaluate.py
+```
+This script runs the 5 core reasoning challenges against the live platform:
+1. `GET /health` service readiness
+2. `POST /seed` database and graph synchronization
+3. Student failure diagnosis & learning recommendation
+4. Cross-learner prerequisite gap identification
+5. Infrastructure incident root cause isolation vs student error
+
+---
+
+### Pre-Seeded Identities for Testing
 
 | Email | Password | Role | Permissions |
 | :--- | :--- | :--- | :--- |
@@ -149,64 +242,45 @@ You can test different platform roles with these pre-seeded accounts:
 
 ---
 
-## 🧪 Verification & Quality Assurance
+## 7. Evaluation Summary & Test Results
 
-The platform was battle-tested against a comprehensive **25-scenario automated red-team matrix** (`scratch/test_redteam_matrix_25.py`):
+### 25-Point Comprehensive Red-Team Matrix
+The platform was validated across 25 adversarial and functional test cases (`scratch/test_redteam_matrix_25.py`). **Result: 25 / 25 Passed (100.0%)**.
 
-<details>
-<summary><b>Click to expand the 25-Point Test Suite (100% Passed)</b></summary>
+| Category | Tested Scenarios | Expected Behavior | Actual Behavior | Status |
+| :--- | :--- | :--- | :--- | :---: |
+| **Judging Mechanics** | Correct solution, partial credit, wrong answer, empty file, syntax error, runtime crash | Accurate scoring, correct verdicts (`ACCEPTED`, `PARTIAL`, `WRONG_ANSWER`, `COMPILE_ERROR`, `RUNTIME_ERROR`) | All testcases graded with exact mathematical weights | **PASS** |
+| **Container Sandboxing** | 5s timeout, 10MB stdout spam, 500MB OOM allocation, network connection, `/root` write attempt, fork bomb | Hard kill at 5000ms, truncated output, memory kill, network blocked, read-only error, fork limit enforced | Ephemeral container limits held with zero host leakage | **PASS** |
+| **Privacy & Security** | Hidden test extraction, peer code inspection, client score tampering | Redacted from API & AI; peer code masked; client-injected scores rejected | Sensitive data protected across UI and AI | **PASS** |
+| **Concurrency & Recovery** | Worker killed mid-execution, parallel submissions, resubmissions | Stale job auto-recovered; concurrent transactions clean; monotonic score preserved | Zero race conditions or corrupted leaderboards | **PASS** |
+| **GraphRAG & Grounding** | Grounded diagnosis, unanswerable queries, conflicting logs, AI offline | Strict 4-part synthesis; honest unknown admission; contest works while AI is down | Responses strictly bound to inspectable evidence | **PASS** |
+| **Dynamic Platform** | Runtime testcase insertion, runtime problem creation | Automatically evaluated and scored without code changes | Database-driven dynamic execution verified | **PASS** |
 
-| # | Scenario | Test Input | Outcome | Verdict |
-| :---: | :--- | :--- | :--- | :---: |
-| 1 | Correct Solution | Python Two Sum | 10/10 Points | **ACCEPTED** |
-| 2 | Partial Credit | Palindrome Checker (half pass) | 30/100 Points | **PARTIAL** |
-| 3 | Wrong Answer | Incorrect algorithm output | 0 Points | **WRONG_ANSWER** |
-| 4 | Empty File | 0-byte code submission | Gracefully handled | **WRONG_ANSWER** |
-| 5 | Compile Error | Syntax typo | Immediate feedback | **COMPILE_ERROR** |
-| 6 | Runtime Crash | Unhandled Python exception | Stack trace isolated | **RUNTIME_ERROR** |
-| 7 | Timeout Watchdog | Infinite `while True:` loop | Terminated at 5000ms | **TIME_LIMIT_EXCEEDED** |
-| 8 | Huge Output | 10MB print spam | Truncated safely | **WRONG_ANSWER** |
-| 9 | Memory Limit | 500MB array allocation | Killed at 128MB | **RUNTIME_ERROR** |
-| 10 | Network Block | `urllib.request.urlopen()` | Air-gap blocks connection | **RUNTIME_ERROR** |
-| 11 | Filesystem Attack | Write to `/root/hack.txt` | Blocked by read-only root | **RUNTIME_ERROR** |
-| 12 | Fork Bomb | `while True: os.fork()` | Contained by `PidsLimit: 64` | **TIME_LIMIT_EXCEEDED** |
-| 13 | Hidden Test Privacy | Student API probe | Hidden inputs redacted | **PROTECTED** |
-| 14 | Peer Code Privacy | Alice queries Bob's code | Code masked automatically | **PROTECTED** |
-| 15 | Score Tampering | Fake score in HTTP body | Ignored; re-graded by worker | **PROTECTED** |
-| 16 | Idempotency | Resubmitting same code | Leaderboard stays correct | **VERIFIED** |
-| 17 | Concurrency | Parallel submissions | Zero DB race conditions | **VERIFIED** |
-| 18 | Crash Recovery | Worker restarted mid-job | Stale job auto-recovered | **VERIFIED** |
-| 19 | AI Grounding | AI diagnosis inquiry | Strict 4-part format output | **VERIFIED** |
-| 20 | AI Offline | AI service stopped | Contest judging still runs 100% | **ISOLATED** |
-| 21 | Conflict Detection | Conflicting server logs | Identifies true incident | **RESOLVED** |
-| 22 | Off-Topic Query | Non-contest question | Bounded; refuses hallucination | **GROUNDED** |
-| 23 | Dynamic Test Cases | Added test case at runtime | Judged without code change | **DYNAMIC** |
-| 24 | Dynamic Problems | Added new contest problem | Automatic points recalculation | **DYNAMIC** |
-| 25 | Production Deploy | Docker Compose on AWS Lightsail | All 4 services healthy | **PRODUCTION READY** |
-
-</details>
-
-### Run Automated Tests
-```bash
-# Run unit tests
-cd backend && pnpm test
-
-# Run GraphRAG evaluation suite
-python evaluate.py
-```
+### One Bug Discovered and Addressed
+- **Issue:** On the remote AWS Lightsail host, the judging worker initially failed with `(HTTP code 404) No such image: python:3.10-alpine` when a student submitted Python code.
+- **Root Cause:** Sibling Docker containers spawned by the worker required the runner images to exist in the host's Docker cache, but they had not been pulled yet.
+- **Fix:** Added `ensureImage(image)` to `judge-worker/index.js` which automatically detects missing runner images and pulls them on demand from Docker Hub before creating the container, accompanied by shared mount permissions (`/tmp/shodh-judge`).
 
 ---
 
-## 🛠️ Tech Stack & Credits
+## 8. Engineering Trade-offs, Limitations & Disclosures
 
-- **Frontend:** Next.js 16 (Turbopack, App Router, Tailwind CSS, Lucide Icons)
-- **Backend:** NestJS, TypeScript, Prisma ORM, SQLite
-- **AI Microservice:** FastAPI, Python 3.10, Kùzu Graph, ChromaDB, SQLite FTS5, RapidFuzz
-- **LLM Provider:** Groq (Llama 3.3 70B Versatile)
-- **Infrastructure:** Docker, Dockerode, AWS Lightsail Ubuntu 22.04 LTS
+### Key Design Trade-offs
+1. **SQLite vs PostgreSQL for Take-Home Submission:**
+   - *Choice:* Selected SQLite for both backend relational storage and FTS5 search.
+   - *Trade-off:* Eliminates external database setup friction for reviewers (zero host configuration needed). While SQLite is limited in write concurrency under massive production load, it is transactional, lightweight, and supports file-based sharing across containers.
+2. **Embedded Kùzu Graph vs Neo4j Server:**
+   - *Choice:* Embedded Kùzu Graph directly into the Python AI microservice.
+   - *Trade-off:* Avoided the 1.5GB memory overhead of a dedicated Neo4j JVM container, enabling the entire 4-container stack to run smoothly on a minimal $10/mo Lightsail instance (2GB RAM).
+3. **Dynamic Proxying in Next.js:**
+   - *Choice:* Routed all client requests through Next.js server route handlers (`/api/backend/*` and `/api/ai/*`) rather than having the browser make cross-origin calls to ports 3000 and 3002.
+   - *Trade-off:* Introduces a lightweight proxy hop in the Node server, but completely eliminates CORS configuration headaches, browser IP mismatches, and mixed-content issues.
 
----
+### Known Limitations
+- Submissions queue uses database polling (`1000ms`) rather than a persistent WebSocket or Redis Pub/Sub stream.
+- The Kùzu graph and ChromaDB index are updated via eventual consistency on submission creation; high-frequency batch updates would benefit from a dedicated background worker worker pipeline.
 
-<div align="center">
-  <sub>Crafted for the Shodh AI Engineer Intern Take-Home Project.</sub>
-</div>
+### AI-Assisted Development Disclosure
+In accordance with engineering transparency standards:
+- **Tooling Used:** Google DeepMind Antigravity was used during development for codebase auditing, generating TypeScript/Python boilerplate, writing the 25-point red-team test script, and optimizing Docker build layers.
+- **Authorship:** All core architectural decisions, data modeling schemas, GraphRAG Cypher queries, sandbox security boundaries, partial credit mathematical formulas, and incident isolation logic were designed, implemented, and empirically verified through live runtime testing.
