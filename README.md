@@ -2,16 +2,19 @@
 
 # 🚀 Shodh-a-Code
 ### A Containerized Coding Contest Platform with an Evidence-Grounded AI Tutor
-
-
-
 A practical, full-stack platform built for the **Shodh AI Engineer Intern Take-Home**.
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-AWS%20Cloud-brightgreen?logo=amazon-aws)](http://ec2-13-206-201-211.ap-south-1.compute.amazonaws.com:3001/)
+<br />
 
-[🌐 **Live AWS Demo**](http://ec2-13-206-201-211.ap-south-1.compute.amazonaws.com:3001/) • [Quick Start](#-quick-start-3-steps) • [How It Works](#-how-it-works) • [The 4 Stages](#-the-4-stages) • [AI Q&A Demo](#-the-3-ai-investigation-questions) • [Demo Accounts](#-demo-accounts)
+# [✨ 🌟 LIVE AWS DEMO 🌟 ✨](http://amazonaws.com)
+*Click above to experience the live platform*
+
+<br />
+
+• [Quick Start](#-quick-start-3-steps) • [How It Works](#-how-it-works) • [The 4 Stages](#-the-4-stages) • [AI Q&A Demo](#-the-3-ai-investigation-questions) • [Demo Accounts](#-demo-accounts)
 
 </div>
+
 
 ---
 
