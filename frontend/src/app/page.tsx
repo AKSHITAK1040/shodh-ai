@@ -138,12 +138,6 @@ export default function Home() {
         </div>
 
 
-        {/* Decorative Sparkle Accent on bottom right */}
-        <div className="absolute bottom-16 right-16 text-[#334155]/60 pointer-events-none hidden lg:block">
-          <svg className="w-8 h-8 fill-current" viewBox="0 0 24 24">
-            <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z" />
-          </svg>
-        </div>
       </main>
     </div>
   );
