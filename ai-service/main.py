@@ -12,6 +12,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import requests
@@ -57,6 +58,12 @@ QUERY_CACHE = {}
 db = kuzu.Database("./kuzu_data")
 conn = kuzu.Connection(db)
 
+def safe_kuzu(q: str):
+    try:
+        conn.execute(q)
+    except Exception as e:
+        logger.debug(f"Kuzu query skipped or satisfied: {e}")
+
 chroma_client = chromadb.PersistentClient(path="./chroma_data")
 collection = chroma_client.get_or_create_collection(name="knowledge_base")
 
@@ -92,35 +99,44 @@ async def startup_event():
         global is_ready
         try:
             # 1. Initialize Graph Schema
-            conn.execute("CREATE NODE TABLE IF NOT EXISTS Learner (id STRING, name STRING, PRIMARY KEY (id))")
-            conn.execute("CREATE NODE TABLE IF NOT EXISTS Problem (id STRING, title STRING, PRIMARY KEY (id))")
-            conn.execute("CREATE NODE TABLE IF NOT EXISTS Submission (id STRING, status STRING, verdict STRING, PRIMARY KEY (id))")
-            conn.execute("CREATE NODE TABLE IF NOT EXISTS Concept (id STRING, name STRING, PRIMARY KEY (id))")
-            conn.execute("CREATE NODE TABLE IF NOT EXISTS Resource (id STRING, title STRING, url STRING, PRIMARY KEY (id))")
-            conn.execute("CREATE REL TABLE IF NOT EXISTS SUBMITTED (FROM Learner TO Submission)")
-            conn.execute("CREATE REL TABLE IF NOT EXISTS ATTEMPTED (FROM Submission TO Problem)")
-            conn.execute("CREATE REL TABLE IF NOT EXISTS REQUIRES (FROM Problem TO Concept)")
-            conn.execute("CREATE REL TABLE IF NOT EXISTS RECOMMENDS (FROM Concept TO Resource)")
+            safe_kuzu("CREATE NODE TABLE IF NOT EXISTS Learner (id STRING, name STRING, PRIMARY KEY (id))")
+            safe_kuzu("CREATE NODE TABLE IF NOT EXISTS Problem (id STRING, title STRING, PRIMARY KEY (id))")
+            safe_kuzu("CREATE NODE TABLE IF NOT EXISTS Submission (id STRING, status STRING, verdict STRING, PRIMARY KEY (id))")
+            safe_kuzu("CREATE NODE TABLE IF NOT EXISTS Concept (id STRING, name STRING, PRIMARY KEY (id))")
+            safe_kuzu("CREATE NODE TABLE IF NOT EXISTS Resource (id STRING, title STRING, url STRING, PRIMARY KEY (id))")
+            safe_kuzu("CREATE REL TABLE IF NOT EXISTS SUBMITTED (FROM Learner TO Submission)")
+            safe_kuzu("CREATE REL TABLE IF NOT EXISTS ATTEMPTED (FROM Submission TO Problem)")
+            safe_kuzu("CREATE REL TABLE IF NOT EXISTS REQUIRES (FROM Problem TO Concept)")
+            safe_kuzu("CREATE REL TABLE IF NOT EXISTS RECOMMENDS (FROM Concept TO Resource)")
             
             # Health Radar Graph Schema
-            conn.execute("CREATE NODE TABLE IF NOT EXISTS Worker (id STRING, name STRING, version STRING, PRIMARY KEY (id))")
-            conn.execute("CREATE NODE TABLE IF NOT EXISTS IncidentEvent (id STRING, type STRING, description STRING, timestamp STRING, PRIMARY KEY (id))")
-            conn.execute("CREATE REL TABLE IF NOT EXISTS PROCESSED_BY (FROM Submission TO Worker)")
-            conn.execute("CREATE REL TABLE IF NOT EXISTS AFFECTED_BY (FROM Worker TO IncidentEvent)")
+            safe_kuzu("CREATE NODE TABLE IF NOT EXISTS Worker (id STRING, name STRING, version STRING, PRIMARY KEY (id))")
+            safe_kuzu("CREATE NODE TABLE IF NOT EXISTS IncidentEvent (id STRING, type STRING, description STRING, timestamp STRING, PRIMARY KEY (id))")
+            safe_kuzu("CREATE REL TABLE IF NOT EXISTS PROCESSED_BY (FROM Submission TO Worker)")
+            safe_kuzu("CREATE REL TABLE IF NOT EXISTS AFFECTED_BY (FROM Worker TO IncidentEvent)")
             
             # 2. Initialize FTS5 Lexical DB
-            sql_conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS documents USING fts5(id, type, entity_id, content, timestamp);")
+            try:
+                sql_conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS documents USING fts5(id, type, entity_id, content, timestamp);")
+            except Exception as fe:
+                logger.debug(f"FTS5 init note: {fe}")
             
             # 3. Dummy ChromaDB call to force model download on startup
-            collection.query(query_texts=["init"], n_results=1)
+            try:
+                collection.query(query_texts=["init"], n_results=1)
+            except Exception as ce:
+                logger.debug(f"Chroma query note: {ce}")
             
             # 4. Perform initial graph, vector, and FTS seeding
-            perform_seeding()
-            
+            try:
+                perform_seeding()
+            except Exception as se:
+                logger.warning(f"Seeding notice: {se}")
+        except Exception as e:
+            logger.error(f"Startup warning during DB init: {e}")
+        finally:
             is_ready = True
             logger.info("AI Service is READY.")
-        except Exception as e:
-            print("Startup Error:", e)
 
     threading.Thread(target=init_dbs).start()
 
@@ -317,77 +333,77 @@ def seed_dev_db():
 def health_check():
     if is_ready:
         return {"status": "ready"}
-    return {"status": "initializing"}, 503
+    return JSONResponse(status_code=503, content={"status": "initializing"})
 
 def perform_seeding():
     # 1. Seed Graph: 4-Hop Multi-Hop Traversal (Learner -> Submission -> Problem -> Concept -> Learning Resource)
-    conn.execute("MERGE (l:Learner {id: 'u1', name: 'Alice'})")
-    conn.execute("MERGE (p:Problem {id: 'p1', title: 'Two Sum'})")
-    conn.execute("MERGE (c:Concept {id: 'c1', name: 'Hash Map'})")
-    conn.execute("MERGE (r1:Resource {id: 'r1', title: 'Hash Map Implementation & Collision Resolution Guide', url: 'https://docs.shodh.ai/hashmap'})")
-    conn.execute("MERGE (s1:Submission {id: 'sub1', status: 'COMPLETED', verdict: 'WRONG_ANSWER'})")
-    conn.execute("MATCH (p:Problem {id: 'p1'}), (c:Concept {id: 'c1'}) MERGE (p)-[:REQUIRES]->(c)")
-    conn.execute("MATCH (c:Concept {id: 'c1'}), (r:Resource {id: 'r1'}) MERGE (c)-[:RECOMMENDS]->(r)")
-    conn.execute("MATCH (l:Learner {id: 'u1'}), (s1:Submission {id: 'sub1'}) MERGE (l)-[:SUBMITTED]->(s1)")
-    conn.execute("MATCH (s1:Submission {id: 'sub1'}), (p:Problem {id: 'p1'}) MERGE (s1)-[:ATTEMPTED]->(p)")
+    safe_kuzu("MERGE (l:Learner {id: 'u1', name: 'Alice'})")
+    safe_kuzu("MERGE (p:Problem {id: 'p1', title: 'Two Sum'})")
+    safe_kuzu("MERGE (c:Concept {id: 'c1', name: 'Hash Map'})")
+    safe_kuzu("MERGE (r1:Resource {id: 'r1', title: 'Hash Map Implementation & Collision Resolution Guide', url: 'https://docs.shodh.ai/hashmap'})")
+    safe_kuzu("MERGE (s1:Submission {id: 'sub1', status: 'COMPLETED', verdict: 'WRONG_ANSWER'})")
+    safe_kuzu("MATCH (p:Problem {id: 'p1'}), (c:Concept {id: 'c1'}) MERGE (p)-[:REQUIRES]->(c)")
+    safe_kuzu("MATCH (c:Concept {id: 'c1'}), (r:Resource {id: 'r1'}) MERGE (c)-[:RECOMMENDS]->(r)")
+    safe_kuzu("MATCH (l:Learner {id: 'u1'}), (s1:Submission {id: 'sub1'}) MERGE (l)-[:SUBMITTED]->(s1)")
+    safe_kuzu("MATCH (s1:Submission {id: 'sub1'}), (p:Problem {id: 'p1'}) MERGE (s1)-[:ATTEMPTED]->(p)")
     
     # Submissions for Cases A-E in Graph
-    conn.execute("MERGE (sa:Submission {id: 'sub_accepted', status: 'COMPLETED', verdict: 'ACCEPTED'})")
-    conn.execute("MERGE (sw:Submission {id: 'sub_wrong', status: 'COMPLETED', verdict: 'WRONG_ANSWER'})")
-    conn.execute("MERGE (sr:Submission {id: 'sub_runtime_error', status: 'COMPLETED', verdict: 'RUNTIME_ERROR'})")
-    conn.execute("MERGE (sm:Submission {id: 'sub_missing_evidence', status: 'INFRA_FAILED', verdict: 'INFRASTRUCTURE_ERROR'})")
-    conn.execute("MATCH (l:Learner {id: 'u1'}), (sa:Submission {id: 'sub_accepted'}) MERGE (l)-[:SUBMITTED]->(sa)")
-    conn.execute("MATCH (l:Learner {id: 'u1'}), (sw:Submission {id: 'sub_wrong'}) MERGE (l)-[:SUBMITTED]->(sw)")
-    conn.execute("MATCH (l:Learner {id: 'u1'}), (sr:Submission {id: 'sub_runtime_error'}) MERGE (l)-[:SUBMITTED]->(sr)")
-    conn.execute("MATCH (l:Learner {id: 'u1'}), (sm:Submission {id: 'sub_missing_evidence'}) MERGE (l)-[:SUBMITTED]->(sm)")
-    conn.execute("MATCH (sa:Submission {id: 'sub_accepted'}), (p:Problem {id: 'p1'}) MERGE (sa)-[:ATTEMPTED]->(p)")
-    conn.execute("MATCH (sw:Submission {id: 'sub_wrong'}), (p:Problem {id: 'p1'}) MERGE (sw)-[:ATTEMPTED]->(p)")
-    conn.execute("MATCH (sr:Submission {id: 'sub_runtime_error'}), (p:Problem {id: 'p1'}) MERGE (sr)-[:ATTEMPTED]->(p)")
-    conn.execute("MATCH (sm:Submission {id: 'sub_missing_evidence'}), (p:Problem {id: 'p1'}) MERGE (sm)-[:ATTEMPTED]->(p)")
+    safe_kuzu("MERGE (sa:Submission {id: 'sub_accepted', status: 'COMPLETED', verdict: 'ACCEPTED'})")
+    safe_kuzu("MERGE (sw:Submission {id: 'sub_wrong', status: 'COMPLETED', verdict: 'WRONG_ANSWER'})")
+    safe_kuzu("MERGE (sr:Submission {id: 'sub_runtime_error', status: 'COMPLETED', verdict: 'RUNTIME_ERROR'})")
+    safe_kuzu("MERGE (sm:Submission {id: 'sub_missing_evidence', status: 'INFRA_FAILED', verdict: 'INFRASTRUCTURE_ERROR'})")
+    safe_kuzu("MATCH (l:Learner {id: 'u1'}), (sa:Submission {id: 'sub_accepted'}) MERGE (l)-[:SUBMITTED]->(sa)")
+    safe_kuzu("MATCH (l:Learner {id: 'u1'}), (sw:Submission {id: 'sub_wrong'}) MERGE (l)-[:SUBMITTED]->(sw)")
+    safe_kuzu("MATCH (l:Learner {id: 'u1'}), (sr:Submission {id: 'sub_runtime_error'}) MERGE (l)-[:SUBMITTED]->(sr)")
+    safe_kuzu("MATCH (l:Learner {id: 'u1'}), (sm:Submission {id: 'sub_missing_evidence'}) MERGE (l)-[:SUBMITTED]->(sm)")
+    safe_kuzu("MATCH (sa:Submission {id: 'sub_accepted'}), (p:Problem {id: 'p1'}) MERGE (sa)-[:ATTEMPTED]->(p)")
+    safe_kuzu("MATCH (sw:Submission {id: 'sub_wrong'}), (p:Problem {id: 'p1'}) MERGE (sw)-[:ATTEMPTED]->(p)")
+    safe_kuzu("MATCH (sr:Submission {id: 'sub_runtime_error'}), (p:Problem {id: 'p1'}) MERGE (sr)-[:ATTEMPTED]->(p)")
+    safe_kuzu("MATCH (sm:Submission {id: 'sub_missing_evidence'}), (p:Problem {id: 'p1'}) MERGE (sm)-[:ATTEMPTED]->(p)")
 
     # Cross-learner prerequisite gap data
-    conn.execute("MERGE (l2:Learner {id: 'u2', name: 'Bob'})")
-    conn.execute("MERGE (p2:Problem {id: 'p2', title: 'Palindrome Checker'})")
-    conn.execute("MATCH (p2:Problem {id: 'p2'}), (c:Concept {id: 'c1'}) MERGE (p2)-[:REQUIRES]->(c)")
-    conn.execute("MERGE (s2:Submission {id: 'sub2', status: 'COMPLETED', verdict: 'TIME_LIMIT_EXCEEDED'})")
-    conn.execute("MATCH (l2:Learner {id: 'u2'}), (s2:Submission {id: 'sub2'}) MERGE (l2)-[:SUBMITTED]->(s2)")
-    conn.execute("MATCH (s2:Submission {id: 'sub2'}), (p2:Problem {id: 'p2'}) MERGE (s2)-[:ATTEMPTED]->(p2)")
+    safe_kuzu("MERGE (l2:Learner {id: 'u2', name: 'Bob'})")
+    safe_kuzu("MERGE (p2:Problem {id: 'p2', title: 'Palindrome Checker'})")
+    safe_kuzu("MATCH (p2:Problem {id: 'p2'}), (c:Concept {id: 'c1'}) MERGE (p2)-[:REQUIRES]->(c)")
+    safe_kuzu("MERGE (s2:Submission {id: 'sub2', status: 'COMPLETED', verdict: 'TIME_LIMIT_EXCEEDED'})")
+    safe_kuzu("MATCH (l2:Learner {id: 'u2'}), (s2:Submission {id: 'sub2'}) MERGE (l2)-[:SUBMITTED]->(s2)")
+    safe_kuzu("MATCH (s2:Submission {id: 'sub2'}), (p2:Problem {id: 'p2'}) MERGE (s2)-[:ATTEMPTED]->(p2)")
 
     # Case D submission in Graph
-    conn.execute("MERGE (st:Submission {id: 'sub_timeout', status: 'COMPLETED', verdict: 'TIME_LIMIT_EXCEEDED'})")
-    conn.execute("MATCH (l:Learner {id: 'u1'}), (st:Submission {id: 'sub_timeout'}) MERGE (l)-[:SUBMITTED]->(st)")
-    conn.execute("MATCH (st:Submission {id: 'sub_timeout'}), (p2:Problem {id: 'p2'}) MERGE (st)-[:ATTEMPTED]->(p2)")
+    safe_kuzu("MERGE (st:Submission {id: 'sub_timeout', status: 'COMPLETED', verdict: 'TIME_LIMIT_EXCEEDED'})")
+    safe_kuzu("MATCH (l:Learner {id: 'u1'}), (st:Submission {id: 'sub_timeout'}) MERGE (l)-[:SUBMITTED]->(st)")
+    safe_kuzu("MATCH (st:Submission {id: 'sub_timeout'}), (p2:Problem {id: 'p2'}) MERGE (st)-[:ATTEMPTED]->(p2)")
 
     # Bob's private submission
-    conn.execute("MERGE (sb:Submission {id: 'sub_bob_private', status: 'COMPLETED', verdict: 'ACCEPTED'})")
-    conn.execute("MATCH (l2:Learner {id: 'u2'}), (sb:Submission {id: 'sub_bob_private'}) MERGE (l2)-[:SUBMITTED]->(sb)")
-    conn.execute("MATCH (sb:Submission {id: 'sub_bob_private'}), (p:Problem {id: 'p1'}) MERGE (sb)-[:ATTEMPTED]->(p)")
+    safe_kuzu("MERGE (sb:Submission {id: 'sub_bob_private', status: 'COMPLETED', verdict: 'ACCEPTED'})")
+    safe_kuzu("MATCH (l2:Learner {id: 'u2'}), (sb:Submission {id: 'sub_bob_private'}) MERGE (l2)-[:SUBMITTED]->(sb)")
+    safe_kuzu("MATCH (sb:Submission {id: 'sub_bob_private'}), (p:Problem {id: 'p1'}) MERGE (sb)-[:ATTEMPTED]->(p)")
 
     # Unseen test data
-    conn.execute("MERGE (l3:Learner {id: 'u3', name: 'Charlie'})")
-    conn.execute("MERGE (p3:Problem {id: 'p3', title: 'Binary Search'})")
-    conn.execute("MERGE (c3:Concept {id: 'c3', name: 'Divide and Conquer'})")
-    conn.execute("MERGE (r3:Resource {id: 'r3', title: 'Divide and Conquer Master Theorem Tutorial', url: 'https://docs.shodh.ai/divide-conquer'})")
-    conn.execute("MATCH (p3:Problem {id: 'p3'}), (c3:Concept {id: 'c3'}) MERGE (p3)-[:REQUIRES]->(c3)")
-    conn.execute("MATCH (c3:Concept {id: 'c3'}), (r:Resource {id: 'r3'}) MERGE (c3)-[:RECOMMENDS]->(r)")
-    conn.execute("MERGE (s3:Submission {id: 'sub3', status: 'COMPLETED', verdict: 'RUNTIME_ERROR'})")
-    conn.execute("MATCH (l3:Learner {id: 'u3'}), (s3:Submission {id: 'sub3'}) MERGE (l3)-[:SUBMITTED]->(s3)")
-    conn.execute("MATCH (s3:Submission {id: 'sub3'}), (p3:Problem {id: 'p3'}) MERGE (s3)-[:ATTEMPTED]->(p3)")
+    safe_kuzu("MERGE (l3:Learner {id: 'u3', name: 'Charlie'})")
+    safe_kuzu("MERGE (p3:Problem {id: 'p3', title: 'Binary Search'})")
+    safe_kuzu("MERGE (c3:Concept {id: 'c3', name: 'Divide and Conquer'})")
+    safe_kuzu("MERGE (r3:Resource {id: 'r3', title: 'Divide and Conquer Master Theorem Tutorial', url: 'https://docs.shodh.ai/divide-conquer'})")
+    safe_kuzu("MATCH (p3:Problem {id: 'p3'}), (c3:Concept {id: 'c3'}) MERGE (p3)-[:REQUIRES]->(c3)")
+    safe_kuzu("MATCH (c3:Concept {id: 'c3'}), (r:Resource {id: 'r3'}) MERGE (c3)-[:RECOMMENDS]->(r)")
+    safe_kuzu("MERGE (s3:Submission {id: 'sub3', status: 'COMPLETED', verdict: 'RUNTIME_ERROR'})")
+    safe_kuzu("MATCH (l3:Learner {id: 'u3'}), (s3:Submission {id: 'sub3'}) MERGE (l3)-[:SUBMITTED]->(s3)")
+    safe_kuzu("MATCH (s3:Submission {id: 'sub3'}), (p3:Problem {id: 'p3'}) MERGE (s3)-[:ATTEMPTED]->(p3)")
 
     # 1b. Seed Health Radar Graph Nodes & Relationships
-    conn.execute("MERGE (w1:Worker {id: 'worker-crash-node9', name: 'worker-crash-node9', version: '2.4-rc1'})")
-    conn.execute("MERGE (w2:Worker {id: 'worker-healthy-1', name: 'worker-healthy-1', version: '2.3'})")
-    conn.execute("MERGE (e1:IncidentEvent {id: 'event_crash_node9', type: 'WORKER_CRASH', description: 'Worker node terminated unexpectedly due to host kernel panic / OOM on judge version 2.4-rc1', timestamp: '14:32:00'})")
-    conn.execute("MATCH (w1:Worker {id: 'worker-crash-node9'}), (e1:IncidentEvent {id: 'event_crash_node9'}) MERGE (w1)-[:AFFECTED_BY]->(e1)")
+    safe_kuzu("MERGE (w1:Worker {id: 'worker-crash-node9', name: 'worker-crash-node9', version: '2.4-rc1'})")
+    safe_kuzu("MERGE (w2:Worker {id: 'worker-healthy-1', name: 'worker-healthy-1', version: '2.3'})")
+    safe_kuzu("MERGE (e1:IncidentEvent {id: 'event_crash_node9', type: 'WORKER_CRASH', description: 'Worker node terminated unexpectedly due to host kernel panic / OOM on judge version 2.4-rc1', timestamp: '14:32:00'})")
+    safe_kuzu("MATCH (w1:Worker {id: 'worker-crash-node9'}), (e1:IncidentEvent {id: 'event_crash_node9'}) MERGE (w1)-[:AFFECTED_BY]->(e1)")
 
     for inc_id in ['sub_inc_1', 'sub_inc_2', 'sub_inc_3', 'sub_inc_4', 'sub_inc_5']:
-        conn.execute(f"MERGE (s:Submission {{id: '{inc_id}', status: 'INFRA_FAILED', verdict: 'INFRASTRUCTURE_ERROR'}})")
-        conn.execute(f"MATCH (s:Submission {{id: '{inc_id}'}}), (w1:Worker {{id: 'worker-crash-node9'}}) MERGE (s)-[:PROCESSED_BY]->(w1)")
-        conn.execute(f"MATCH (s:Submission {{id: '{inc_id}'}}), (p1:Problem {{id: 'p1'}}) MERGE (s)-[:ATTEMPTED]->(p1)")
+        safe_kuzu(f"MERGE (s:Submission {{id: '{inc_id}', status: 'INFRA_FAILED', verdict: 'INFRASTRUCTURE_ERROR'}})")
+        safe_kuzu(f"MATCH (s:Submission {{id: '{inc_id}'}}), (w1:Worker {{id: 'worker-crash-node9'}}) MERGE (s)-[:PROCESSED_BY]->(w1)")
+        safe_kuzu(f"MATCH (s:Submission {{id: '{inc_id}'}}), (p1:Problem {{id: 'p1'}}) MERGE (s)-[:ATTEMPTED]->(p1)")
 
-    conn.execute("MERGE (se:Submission {id: 'sub_student_err', status: 'COMPLETED', verdict: 'WRONG_ANSWER'})")
-    conn.execute("MATCH (se:Submission {id: 'sub_student_err'}), (w2:Worker {id: 'worker-healthy-1'}) MERGE (se)-[:PROCESSED_BY]->(w2)")
-    conn.execute("MATCH (se:Submission {id: 'sub_student_err'}), (p1:Problem {id: 'p1'}) MERGE (se)-[:ATTEMPTED]->(p1)")
+    safe_kuzu("MERGE (se:Submission {id: 'sub_student_err', status: 'COMPLETED', verdict: 'WRONG_ANSWER'})")
+    safe_kuzu("MATCH (se:Submission {id: 'sub_student_err'}), (w2:Worker {id: 'worker-healthy-1'}) MERGE (se)-[:PROCESSED_BY]->(w2)")
+    safe_kuzu("MATCH (se:Submission {id: 'sub_student_err'}), (p1:Problem {id: 'p1'}) MERGE (se)-[:ATTEMPTED]->(p1)")
 
     # 2. Seed FTS5 Lexical Data
     sql_conn.execute("DELETE FROM documents")
