@@ -3,12 +3,7 @@
 # 🚀 Shodh-a-Code
 ### A Containerized Coding Contest Platform with an Evidence-Grounded AI Tutor
 
-[![Next.js](https://img.shields.io/badge/Frontend-Next.js%2016-black?logo=next.js)](https://nextjs.org/)
-[![NestJS](https://img.shields.io/badge/Backend-NestJS-E0234E?logo=nestjs)](https://nestjs.com/)
-[![FastAPI](https://img.shields.io/badge/AI%20Layer-FastAPI-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
-[![Docker](https://img.shields.io/badge/Judge-Docker%20Sandbox-2496ED?logo=docker)](https://www.docker.com/)
-[![Kùzu](https://img.shields.io/badge/Graph%20DB-Kùzu-purple)](https://kuzudb.com/)
-[![Groq](https://img.shields.io/badge/LLM-Groq%20Llama%203.3-orange)](https://groq.com/)
+
 
 A practical, full-stack platform built for the **Shodh AI Engineer Intern Take-Home**.
 
