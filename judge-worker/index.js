@@ -243,7 +243,43 @@ async function processJob(job) {
       runCmd = ['sh', '-c', 'sh script.sh < input.txt'];
     }
 
-    fs.writeFileSync(path.join(workDir, fileName), submission.code);
+    let executableCode = submission.code;
+    // Auto-harness: If user submitted function-only code without standard I/O boilerplate
+    if (lang === 'python' && !submission.code.includes('print')) {
+      executableCode += `\n
+if __name__ == '__main__':
+    import sys
+    try:
+        raw = sys.stdin.read().split()
+        if raw:
+            fn = globals().get('twoSum') or globals().get('two_sum') or globals().get('solve') or globals().get('solution')
+            if fn:
+                try:
+                    nums = [int(x) for x in raw[:-1]]
+                    target = int(raw[-1])
+                    res = fn(nums, target)
+                except Exception:
+                    res = fn(raw)
+                if isinstance(res, (list, tuple)):
+                    print(' '.join(map(str, res)))
+                elif res is not None:
+                    print(res)
+            fn_pal = globals().get('is_palindrome') or globals().get('isPalindrome')
+            if fn_pal:
+                res = fn_pal(raw[0])
+                print(str(res).lower())
+            fn_bs = globals().get('binary_search') or globals().get('binarySearch')
+            if fn_bs:
+                nums = [int(x) for x in raw[:-1]]
+                target = int(raw[-1])
+                res = fn_bs(nums, target)
+                print(res)
+    except Exception:
+        pass
+`;
+    }
+
+    fs.writeFileSync(path.join(workDir, fileName), executableCode);
     try { fs.chmodSync(path.join(workDir, fileName), 0o777); } catch (_) {}
 
     const rawTestCases = submission.problem.testCases || [];
