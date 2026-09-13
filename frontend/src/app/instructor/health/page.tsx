@@ -50,7 +50,7 @@ export default function ContestHealthRadarPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('http://localhost:3002/instructor/contest-health', {
+      const res = await fetch('/api/ai/instructor/contest-health', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

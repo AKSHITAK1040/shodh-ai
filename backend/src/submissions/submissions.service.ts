@@ -42,8 +42,9 @@ export class SubmissionsService {
     });
     
     // AI Indexing (Eventual Consistency)
+    const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3002';
     try {
-      fetch('http://localhost:3002/index/record', {
+      fetch(`${aiServiceUrl}/index/record`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

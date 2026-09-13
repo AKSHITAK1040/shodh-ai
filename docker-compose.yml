@@ -8,6 +8,7 @@ services:
     environment:
       - PORT=3000
       - JWT_SECRET=${JWT_SECRET:-super-secret-key-for-takehome}
+      - AI_SERVICE_URL=http://ai-service:3002
     networks:
       - shodh-network
 
@@ -16,6 +17,8 @@ services:
     ports:
       - "3001:3000"
     environment:
+      - BACKEND_URL=http://backend:3000
+      - AI_SERVICE_URL=http://ai-service:3002
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3000}
       - NEXT_PUBLIC_AI_URL=${NEXT_PUBLIC_AI_URL:-http://localhost:3002}
     networks:

@@ -29,20 +29,14 @@ function AIInvestigationContent() {
     if (queryText) setQuestion(queryText);
     setLoading(true);
     try {
-      let res: Response;
-      try {
-        res = await fetch('/api/ai/ask', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: q, user_id: 'u1', user_role: role }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      } catch {
-        res = await fetch('http://localhost:3002/ask', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: q, user_id: 'u1', user_role: role }),
-        });
+      const res = await fetch('/api/ai/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q, user_id: 'u1', user_role: role }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || errData.message || `HTTP ${res.status}`);
       }
       const data = await res.json();
       setResponse(data);

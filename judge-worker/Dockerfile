@@ -8,5 +8,6 @@ COPY package.json pnpm-lock.yaml* ./
 RUN npm install -g pnpm@9 && pnpm install
 
 COPY . .
+RUN npx prisma generate
 
 CMD ["node", "index.js"]

@@ -263,21 +263,8 @@ async function getAuthToken(): Promise<string> {
         return data.access_token;
       }
     }
-  } catch {
-    try {
-      const res = await fetch('http://localhost:3000/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'alice@student.com', password: 'password' }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.access_token) {
-          localStorage.setItem('token', data.access_token);
-          return data.access_token;
-        }
-      }
-    } catch {}
+  } catch (e) {
+    console.warn("Auto-login via /api/backend/auth/login failed:", e);
   }
   return '';
 }
@@ -414,7 +401,7 @@ export default function ContestDetail() {
       }).catch(() => {});
 
       // Dispatch real submission to backend
-      let subResponse = await fetch('/api/backend/submissions', {
+      const subResponse = await fetch('/api/backend/submissions', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -423,18 +410,6 @@ export default function ContestDetail() {
           language: language,
         }),
       });
-
-      if (!subResponse.ok) {
-        subResponse = await fetch('http://localhost:3000/submissions', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            problemId: currentProblem.id,
-            code: code,
-            language: language,
-          }),
-        });
-      }
 
       if (!subResponse.ok) {
         const errData = await subResponse.json().catch(() => ({}));
@@ -458,14 +433,9 @@ export default function ContestDetail() {
       const pollInterval = setInterval(async () => {
         attempts++;
         try {
-          let pollRes = await fetch(`/api/backend/submissions/${realSubId}`, {
+          const pollRes = await fetch(`/api/backend/submissions/${realSubId}`, {
             headers,
           });
-          if (!pollRes.ok) {
-            pollRes = await fetch(`http://localhost:3000/submissions/${realSubId}`, {
-              headers,
-            });
-          }
 
           if (pollRes.ok) {
             const subData = await pollRes.json();
