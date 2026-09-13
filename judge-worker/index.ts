@@ -157,6 +157,11 @@ if __name__ == '__main__':
     try:
         raw = sys.stdin.read().split()
         if raw:
+            if 'Solution' in globals():
+                sol = globals()['Solution']()
+                for m in ['twoSum', 'two_sum', 'is_palindrome', 'isPalindrome', 'binary_search', 'binarySearch', 'solve']:
+                    if hasattr(sol, m):
+                        globals()[m] = getattr(sol, m)
             fn = globals().get('twoSum') or globals().get('two_sum') or globals().get('solve') or globals().get('solution')
             if fn:
                 try:
