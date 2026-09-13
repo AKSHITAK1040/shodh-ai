@@ -6,7 +6,7 @@ A practical, full-stack platform built for the **Shodh AI Engineer Intern Take-H
 
 <br />
 
-# [✨ 🌟 LIVE AWS DEMO 🌟 ✨](http://amazonaws.com)
+# [http://ec2-13-206-201-211.ap-south-1.compute.amazonaws.com:3001/](http://ec2-13-206-201-211.ap-south-1.compute.amazonaws.com:3001/)
 *Click above to experience the live platform*
 
 <br />
