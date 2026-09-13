@@ -42,6 +42,7 @@ services:
     volumes:
       - backend_data:/usr/src/app/backend-data
       - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/shodh-judge:/tmp/shodh-judge
     environment:
       - DB_URL=file:/usr/src/app/backend-data/dev.db
     networks:

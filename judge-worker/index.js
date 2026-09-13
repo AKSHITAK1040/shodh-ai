@@ -77,8 +77,29 @@ async function recoverStaleJobs() {
   }
 }
 
+// Ensure image exists locally or pull it on demand
+async function ensureImage(image) {
+  try {
+    await docker.getImage(image).inspect();
+  } catch (e) {
+    console.log(`[${WORKER_ID}] Image ${image} not found locally, pulling from Docker Hub...`);
+    await new Promise((resolve, reject) => {
+      docker.pull(image, (err, stream) => {
+        if (err) return reject(err);
+        docker.modem.followProgress(stream, (followErr, res) => {
+          if (followErr) return reject(followErr);
+          resolve(res);
+        });
+      });
+    });
+    console.log(`[${WORKER_ID}] Successfully pulled ${image}`);
+  }
+}
+
 // Execute command inside container with strict sandboxing
 async function runInContainer(image, cmd, workDir, timeoutMs = 5000) {
+  await ensureImage(image);
+
   const dockerMountPath = toDockerPath(workDir);
   const createOptions = {
     Image: image,
@@ -191,8 +212,10 @@ async function processJob(job) {
 
   if (!submission || !submission.problem) return;
 
-  const workDir = path.join(__dirname, 'tmp', job.id);
+  const judgeTmpBase = process.env.JUDGE_TMP_DIR || (process.platform === 'win32' ? path.join(__dirname, 'tmp') : '/tmp/shodh-judge');
+  const workDir = path.join(judgeTmpBase, job.id);
   fs.mkdirSync(workDir, { recursive: true });
+  try { fs.chmodSync(workDir, 0o777); } catch (_) {}
 
   let usedContainerId = null;
 
@@ -221,6 +244,7 @@ async function processJob(job) {
     }
 
     fs.writeFileSync(path.join(workDir, fileName), submission.code);
+    try { fs.chmodSync(path.join(workDir, fileName), 0o777); } catch (_) {}
 
     const rawTestCases = submission.problem.testCases || [];
     const activeTestCases = rawTestCases
@@ -295,6 +319,7 @@ async function processJob(job) {
       const testCase = activeTestCases[i];
       const maxPts = getTestCaseMaxPoints(testCase);
       fs.writeFileSync(path.join(workDir, 'input.txt'), testCase.input);
+      try { fs.chmodSync(path.join(workDir, 'input.txt'), 0o777); } catch (_) {}
 
       const tStart = Date.now();
       let runRes = null;
