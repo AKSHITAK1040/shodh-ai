@@ -12,7 +12,9 @@
 
 A practical, full-stack platform built for the **Shodh AI Engineer Intern Take-Home**.
 
-[Quick Start](#-quick-start-3-steps) • [How It Works](#-how-it-works) • [The 4 Stages](#-the-4-stages) • [AI Q&A Demo](#-the-3-ai-investigation-questions) • [Demo Accounts](#-demo-accounts)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-AWS%20Cloud-brightgreen?logo=amazon-aws)](http://ec2-13-206-201-211.ap-south-1.compute.amazonaws.com:3001/)
+
+[🌐 **Live AWS Demo**](http://ec2-13-206-201-211.ap-south-1.compute.amazonaws.com:3001/) • [Quick Start](#-quick-start-3-steps) • [How It Works](#-how-it-works) • [The 4 Stages](#-the-4-stages) • [AI Q&A Demo](#-the-3-ai-investigation-questions) • [Demo Accounts](#-demo-accounts)
 
 </div>
 
@@ -29,6 +31,8 @@ A practical, full-stack platform built for the **Shodh AI Engineer Intern Take-H
 ---
 
 ## ⚡ Quick Start (3 Steps)
+
+> 💡 **Prefer to test it live?** You can access the live AWS deployment directly without running anything locally: **[http://ec2-13-206-201-211.ap-south-1.compute.amazonaws.com:3001/](http://ec2-13-206-201-211.ap-south-1.compute.amazonaws.com:3001/)**
 
 ### 1. Clone & Run with Docker Compose
 ```bash
